@@ -21,8 +21,8 @@ library(car)
 ```
 
 ```{r,include=FALSE}
-data_self <-read.csv("C:/Users/mashi/data science/second year/semester 4/R/final_project/MTurkself.csv", header=TRUE, stringsAsFactors=FALSE)
-data_provider <-read.csv("C:/Users/mashi/data science/second year/semester 4/R/final_project/MTurkProvider.csv", header=TRUE, stringsAsFactors=FALSE)
+data_self <-read.csv("MTurkself.csv", header=TRUE, stringsAsFactors=FALSE)
+data_provider <-read.csv("MTurkProvider.csv", header=TRUE, stringsAsFactors=FALSE)
 names(data_provider)[1]<-"Session"
 ```
 
