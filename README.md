@@ -4,6 +4,7 @@ ata README
 
 # Project data description
 ### Team name : AM
+ for replicating our analysis end-to-end you need to upload the R code and the 3 files - MTurkProvider , MTurkself and ControlGroup to the same folder and then run the code.
 
 The data folder structure and organization contains two data sets of the two experiments' groups: 
 the Self group and the Provider group. 
