@@ -1,0 +1,215 @@
+---
+title: "final_report - AM "
+output: 
+  pdf_document: 
+    fig_width: 4
+    fig_height: 3
+---
+
+```{r load-packages, message = FALSE,include = FALSE}
+library(knitr)
+library(tidyverse)
+library(broom)
+library(htmltools)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(cowplot)
+library(class)
+library(rpart)
+library(car)
+```
+
+```{r,include=FALSE}
+data_self <-read.csv("C:/Users/mashi/data science/second year/semester 4/R/final_project/MTurkself.csv", header=TRUE, stringsAsFactors=FALSE)
+data_provider <-read.csv("C:/Users/mashi/data science/second year/semester 4/R/final_project/MTurkProvider.csv", header=TRUE, stringsAsFactors=FALSE)
+names(data_provider)[1]<-"Session"
+```
+
+## 1.Introduction
+
+## 2.Data overview
+
+
+```{r,echo=FALSE,include=TRUE}
+self_session1 <- data_self %>% filter(Session == "1")##select first week
+self_session1<-subset(self_session1, select=mood1_1_angry:mood1_10_energetic)##select emotion columns
+self_session1<-sapply(self_session1,FUN=mean)
+
+provider_session1 <- data_provider %>% filter(Session == "1")##select first week
+provider_session1<-subset(provider_session1, select=mood1_1_angry:mood1_10_energetic)##select emotion columns
+provider_session1<-sapply(provider_session1,FUN=mean)
+
+df_all <- cbind(self_session1,provider_session1)
+df_all <- data.frame(df_all)
+df_all <- rownames_to_column(df_all,var="emotions")
+df_all <-pivot_longer(df_all,cols = ends_with("session1"))
+df_all$emotions <- factor(df_all$emotions,levels = c("mood1_2_happy", "mood1_5_cheerful","mood1_10_energetic","mood1_6_calm", "mood1_8_relaxed","mood1_9_lonely","mood1_3_anxious","mood1_4_distressed","mood1_1_angry","mood1_7_sad"))
+
+ggplot(df_all, aes( y= value , fill = name,x=emotions)) + 
+    geom_bar(position="dodge", stat="identity",alpha = 0.8,width = 0.7)+ labs(title = "Initial subjects' rating",subtitle = "represented as the mean of every group",
+    x = 'Emotions',y='value') +
+scale_fill_manual(labels = c("Self", "Provider"),values = c("self_session1" = "lightskyblue","provider_session1" = "hotpink"))+  theme(axis.text.x = element_text(angle = 60 ,hjust=1))+ scale_x_discrete(labels=c("mood1_2_happy" = "Happy", "mood1_5_cheerful" = "Cheerful","mood1_10_energetic" = "Energetic","mood1_6_calm" = "Calm","mood1_8_rel2axed" = "Relaxed","mood1_9_lonely" = "Lonely","mood1_3_anxious" = "Anxious","mood1_4_distressed" = "Distressed","mood1_1_angry" = "Angry","mood1_7_sad" = "Sad"))+ guides(fill=guide_legend(title="Group"))
+
+```
+
+## 3.Methods and results
+
+
+**Self group regression model : **
+we created a multiple regression model according to the positive emotions of the participants in the self group : 
+```{r,echo=FALSE,include=FALSE}
+positive_self_before <- data_self %>% filter(Session == "1" | Session == "2") %>%distinct(id,.keep_all = TRUE)
+positive_self_before <- subset(positive_self_before, select= c("id","mood1_2_happy","mood1_5_cheerful","mood1_6_calm","mood1_8_relaxed","mood1_10_energetic"))
+
+positive_self_after <- data_self %>% filter(Session == "8") 
+positive_self_after<-subset(positive_self_after, select= c("id","mood2_2_happy","mood2_5_cheerful","mood2_6_calm","mood2_8_relaxed","mood2_10_energetic"))
+
+positive_self_after <- data.frame(id=positive_self_after[,1], mean_after =rowMeans(positive_self_after[,2:6]))
+
+new_data <- inner_join(only_positive_self, only_positive_provide, by = "id")
+mean_prov <- mean(new_data$predict_prov) 
+mean_self <- mean(new_data$predict_self)
+
+new_data <- new_data%>%
+  select("id","predict_self","predict_prov") %>% pivot_longer(cols=starts_with("predict"))
+```
+
+```{r,include=FALSE}
+
+set.seed(1000)
+dt_self = sort(sample(nrow(self_positive),nrow(self_positive)*0.7))
+train_self <- self_positive[dt_self,]
+test_self <- self_positive[-dt_self,]
+
+
+names(train_self)[2] <- "happy"
+names(train_self)[3] <- "cheerful"
+names(train_self)[4] <- "calm"
+names(train_self)[5] <- "relaxed"
+names(train_self)[6] <- "energetic"
+
+names(test_self)[2] <- "happy"
+names(test_self)[3] <- "cheerful"
+names(test_self)[4] <- "calm"
+names(test_self)[5] <- "relaxed"
+names(test_self)[6] <- "energetic"
+
+positive_self_reg <-  lm( mean_after ~  happy + cheerful + calm + relaxed + energetic ,data = train_self)
+summary(positive_self_reg)
+
+
+prediction_self <- predict(positive_self_reg,test_self)
+test_self["predict"] <- prediction_self
+```
+
+
+firstly, we calculated the MSE to examine the error of the model:
+
+```{r,echo=FALSE,include=TRUE}
+MSE_Self = (mean(test_self$mean_after - test_self$predict)^2)
+MSE_Self
+```
+then, we wanted to check the coefficients of the emotions, using R we found the Confidence Intervals for the model parameters ( in confidence level of 0.95 % ):
+```{r,echo=FALSE,include=TRUE}
+confint(positive_self_reg,level = 0.95)
+```
+As we can see, all parameters are significant and fall in their confidence intervals.
+In conclusion, the model is significant. 
+
+**Provider group regression model : **
+we created a multiple regression model according to the positive emotions of the participants in the provider group : 
+```{r,echo=FALSE,include=FALSE}
+positive_provider_before <- data_provider %>% filter(Session == "1" | Session == "2") %>%distinct(id,.keep_all = TRUE)
+positive_provider_before <- subset(positive_provider_before, select= c("id","mood1_2_happy","mood1_5_cheerful","mood1_6_calm","mood1_8_relaxed","mood1_10_energetic"))
+
+positive_provider_after <- data_provider%>% filter(Session == "8")%>% select(c("id","mood1_2_happy","mood1_5_cheerful","mood1_6_calm","mood1_8_relaxed","mood1_10_energetic"))
+
+positive_provider_after <- data.frame(id=positive_provider_after[,1], mean_after =rowMeans(positive_provider_after[,2:6]))
+
+
+provider_positive <- inner_join(positive_provider_before, positive_provider_after, by = "id") 
+provider_positive <- data.frame(provider_positive)
+names(provider_positive)[7] <- "mean_after"
+
+```
+
+```{r,include=FALSE}
+set.seed(1000)
+dt_provider = sort(sample(nrow(provider_positive),nrow(provider_positive)*0.7))
+train_provider <- provider_positive[dt_provider,]
+test_provider <- provider_positive[-dt_provider,]
+
+names(train_provider)[2] <- "happy"
+names(train_provider)[3] <- "cheerful"
+names(train_provider)[4] <- "calm"
+names(train_provider)[5] <- "relaxed"
+names(train_provider)[6] <- "energetic"
+
+names(test_provider)[2] <- "happy"
+names(test_provider)[3] <- "cheerful"
+names(test_provider)[4] <- "calm"
+names(test_provider)[5] <- "relaxed"
+names(test_provider)[6] <- "energetic"
+
+positive_provider_reg <-  lm( mean_after ~  happy + cheerful + calm + relaxed + energetic ,data = train_provider)
+summary(positive_provider_reg)
+
+prediction_provider <- predict(positive_provider_reg,test_provider)
+test_provider["predict"] <- prediction_provider
+
+```
+
+
+firstly, we calculated the MSE to examine the error of the model:
+```{r,echo=FALSE,include=TRUE}
+MSE_provider = (mean(test_provider$mean_after - test_provider$predict)^2)
+MSE_provider
+
+vif( mod = positive_self_reg )
+```
+
+then, we wanted to check the coefficients of the emotions, using R we found the Confidence Intervals for the model parameters (in confidence level of 0.95 %):
+```{r,echo=FALSE,include=TRUE}
+confint(positive_provider_reg,level = 0.95)
+```
+
+```{r,include=FALSE}
+data_ques <- read.csv("ControlGroup.csv")
+```
+
+```{r,include=FALSE}
+only_positive_self <- data.frame(data_ques %>%
+                              select("id","happy","cheerful","calm","relaxed","energetic"))
+
+
+prediction_ques_self <- predict(positive_self_reg,only_positive_self)
+only_positive_self["predict_self"] <- prediction_ques_self
+```
+
+```{r,include=FALSE}
+only_positive_provide <- data.frame(data_ques %>%
+                              select("id","happy","cheerful","calm","relaxed","energetic"))
+
+prediction_ques_prov <- predict(positive_provider_reg,only_positive_provide)
+only_positive_provide["predict_prov"] <- prediction_ques_prov
+
+```
+
+```{r,include=FALSE}
+new_data <- inner_join(only_positive_self, only_positive_provide, by = "id")
+new_data <- new_data%>%
+  select("id","predict_self","predict_prov") %>% pivot_longer(cols=starts_with("predict"))
+
+```
+
+```{r,include=TRUE}
+ggplot() + geom_point(data= new_data, aes(x=id, y=value, colour=name),size=2) + theme(axis.title.x=element_blank(),axis.text.x=element_blank(), axis.ticks.x=element_blank()) + labs(y="Predict Value", title="Prediction Findings", subtitle="Results of the Multiple Regresstion Models") + scale_colour_manual(name="Models Prediction:",values = c("blue","plum" ), labels=c("Prediction for the Provider model","Prediction for the Self model")) + geom_hline(yintercept = mean_prov, color='blue') + geom_hline(yintercept = mean_self, color='plum')
+
+```
+
+
+### Source code
+
+```{r, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
